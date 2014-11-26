@@ -1,5 +1,5 @@
 ---
-title: 'Storms: Human and Property Damage Analysis'
+title: 'Weather: Loss of Human Life and Property Damage'
 output: pdf_document
 ---
 
@@ -41,39 +41,34 @@ storm.data2 <- storm.data %>%
   transmute(
     date = lubridate::mdy(
       x = sub(x = BGN_DATE, pattern = "([0-9/]+).*", replacement = "\\1")),
-    decade = as.factor(10 * (year(date) %/% 10)),
+    year = year(date),
     EVTYPE, FATALITIES, INJURIES, PROPDMG
 )
 ```
 
-Afterwards the categories became more open form. In 1993 there were 160 categories,
-1994: 267, 1995: 387, 1996: 228. However, the distinctions were often small, 
-for example there were three entries
-for "WIND CHILL/HIGH WIND", "HIGH WIND/WIND CHILL/BLIZZARD", "HIGH WIND/WIND CHILL"
-as well as separate events sometimes labeled by their date, or occasionally by 
-the name of a specific storm.
+# Overview
+
+This analysis focuses on extreme weather events from 1993 through 2011,
+corresponding with broad categories: tornadoes, hurricanes, floods, and heat.
+
 
 ```` {r shrink_data, echo=FALSE}
 impact <- storm.data2 %>%
-  filter(decade %in% c(2000, 2010)) %>%
-  group_by(EVTYPE) %>%
+  filter(year >= 1993) %>%
+  group_by(EVTYPE, year) %>%
   summarise(
-    death.mean = mean(FATALITIES), death.tot = sum(FATALITIES), 
-    injuries.mean = mean(INJURIES), injuries.tot = sum(INJURIES),
-    property.mean = mean(PROPDMG), property.tot = sum(PROPDMG), 
-    denom = n()
-    )
-```
+    fatalities = sum(FATALITIES), 
+    property = sum(PROPDMG), 
+    count = n()
+    ) %>%
+  mutate(
+    torn = grepl(pattern = "TORN", x = EVTYPE),
+    hurr = grepl(pattern = "HURR|TYPH", x = EVTYPE),
+    floo = grepl(pattern = "FLOO", x = EVTYPE),
+    heat = grepl(pattern = "HEAT", x = EVTYPE)
+)
 
-For the sake of analysis, I will choose a few categories:
-
-* Tornado
-* Hurricane/Typhoon
-* Heat
-* Flooding
-
-```{r}
-
-
+#overlap of categories?
+max(impact$torn + impact$hurr + impact$floo + impact$heat)
 ```
 
