@@ -1,0 +1,79 @@
+---
+title: "Storms: Human and Property Damage Analysis"
+output: html_document
+---
+
+```{r load_libraries, echo=FALSE, message=FALSE} 
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r load_data, echo=FALSE}
+
+# storm.data <- tbl_df(
+#   read.csv(file = "data//StormData.csv", header = TRUE, #nrows = 1000,
+#            colClasses = c(
+#              "NULL", 
+#              "character", #date
+#              rep("NULL", times = 4),
+#              "factor", #state
+#              "factor", #type
+#              rep("NULL", times = 14),
+#              "numeric", #fatal
+#              "numeric", #inju
+#              "numeric", #property
+#              rep("NULL", times = 12)
+#           )
+#   )
+# )
+# 
+# 
+# saveRDS(object = storm.data, ascii = FALSE, compress = "bzip2", file = "data//stormdata.rds")
+
+storm.data <- readRDS(file = "data//stormdata.rds")
+
+```
+
+```{r manip_data, echo=FALSE}
+storm.data2 <- storm.data %>% 
+  transmute(
+    date = lubridate::mdy(
+      x = sub(x = BGN_DATE, pattern = "([0-9/]+).*", replacement = "\\1")),
+    decade = as.factor(10 * (year(date) %/% 10)),
+    EVTYPE, FATALITIES, INJURIES, PROPDMG
+)
+```
+
+Afterwards the categories became more open form. In 1993 there were 160 categories,
+1994: 267, 1995: 387, 1996: 228. However, the distinctions were often small, 
+for example there were three entries
+for "WIND CHILL/HIGH WIND", "HIGH WIND/WIND CHILL/BLIZZARD", "HIGH WIND/WIND CHILL"
+as well as separate events sometimes labeled by their date, or occasionally by 
+the name of a specific storm.
+
+```` {r shrink_data, echo=FALSE}
+impact <- storm.data2 %>%
+  filter(decade %in% c(2000, 2010)) %>%
+  group_by(EVTYPE) %>%
+  summarise(
+    death.mean = mean(FATALITIES), death.tot = sum(FATALITIES), 
+    injuries.mean = mean(INJURIES), injuries.tot = sum(INJURIES),
+    property.mean = mean(PROPDMG), property.tot = sum(PROPDMG), 
+    denom = n()
+    )
+```
+
+For the sake of analysis, I will choose a few categories:
+
+* Tornado
+* Hurricane/Typhoon
+* Heat
+* Flooding
+
+```{r}
+
+
+```
+
