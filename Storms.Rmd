@@ -69,6 +69,56 @@ impact <- storm.data2 %>%
 )
 
 #overlap of categories?
-max(impact$torn + impact$hurr + impact$floo + impact$heat)
+# range(impact$torn + impact$hurr + impact$floo + impact$heat) is [0, 1]
+
+impact.all <- rbind(
+  impact %>%
+    filter(torn) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Tornadoes")
+  ,
+  impact %>%
+    filter(hurr) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Hurricanes")
+  ,
+  impact %>%
+    filter(floo) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Floods")
+  ,
+  impact %>%
+    filter(heat) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Heat")
+  )
+```
+
+According to the reported data, how the cost to human life of the different 
+types of storms compare
+
+```{r}
+ggplot(data = impact.all) + 
+  aes(x = year, y = fatalities) + 
+  geom_point(mapping = aes(group = type, color = type)) + 
+  geom_line(aes(color = type))
+```
+
+According to the reported data, how does the property damage of the different 
+types of storms compare
+
+```{r}
+ggplot(data = impact.all) + 
+  aes(x = year, y = property) + 
+  geom_point(mapping = aes(group = type, color = type)) + 
+  geom_line(aes(color = type))
 ```
 
