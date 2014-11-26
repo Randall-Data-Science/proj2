@@ -1,6 +1,6 @@
 ---
-title: "Storms: Human and Property Damage Analysis"
-output: html_document
+title: 'Storms: Human and Property Damage Analysis'
+output: pdf_document
 ---
 
 ```{r load_libraries, echo=FALSE, message=FALSE} 
