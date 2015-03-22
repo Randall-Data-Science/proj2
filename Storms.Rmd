@@ -1,6 +1,6 @@
 ---
-title: 'Extreme Weather Events'
-output: pdf_document
+title: "Extreme Weather Events"
+output: html_document
 ---
 
 # Summary
@@ -16,36 +16,47 @@ However the categories were useful for the period from 1993 through 2011.
 
 
 ```{r load_libraries, message=FALSE} 
-library(dplyr)
-library(lubridate)
-library(tidyr)
-library(ggplot2)
+need <- function(libraries) {
+  # Load libraries, installing first if necessary
+  for (i in base::setdiff(libraries, .packages(all = TRUE))) {install.packages(i)} 
+  for (i in base::setdiff(libraries, .packages(all = FALSE))) {
+    library(package = i, character.only = TRUE)} 
+}
+need(c("dplyr", "lubridate", "tidyr", "ggplot2", "magrittr"))
 ```
 
 ```{r load_data}
+load_storm_data_csv_bz <- function() {
+  tbl_df(read.csv(file = bzfile("data/StormData.csv.bz2"), header = TRUE, 
+# read directly from bz2 file, wrap output dataframe in dplyr::tbl_df class                  
+    colClasses = c(
+      "NULL", 
+      "character", #date
+      rep("NULL", times = 4), #skip columns
+      "factor", #state
+      "factor", #type
+      rep("NULL", times = 14), #skip
+      "numeric", #fatal
+      "numeric", #injuries
+      "numeric", #property
+      "character", #propexp
+      "numeric", #crops
+      "character", #cropsexp
+      rep("NULL", times = 9))))
+}
 
-# storm.data <- tbl_df(
-#   read.csv(file = "data//StormData.csv", header = TRUE, #nrows = 1000,
-#            colClasses = c(
-#              "NULL", 
-#              "character", #date
-#              rep("NULL", times = 4),
-#              "factor", #state
-#              "factor", #type
-#              rep("NULL", times = 14),
-#              "numeric", #fatal
-#              "numeric", #inju
-#              "numeric", #property
-#              rep("NULL", times = 12)
-#           )
-#   )
-# )
-# 
-# 
-# saveRDS(object = storm.data, ascii = FALSE, compress = "bzip2", file = "data//stormdata.rds")
-
-storm.data <- readRDS(file = "data//stormdata.rds") # cached representation of the data
-
+if(!exists("storm.data")) {
+  if (file.exists("data/stormdata.rds")) storm.data <- readRDS(file = "data//stormdata.rds") 
+    # load saved object on disk if available, otherwise:
+  else {
+    if (!file.exists("data/StormData.csv.bz2")) {
+      download.file(destfile = "data/StormData.csv.bz2", method = "curl",
+        url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",)}
+    storm.data <- load_storm_data_csv_bz()
+    saveRDS(object = storm.data, ascii = FALSE, compress = "bzip2", 
+      file = "data//stormdata.rds") #cache data in only 1.2MB on disk
+  }
+}
 ```
 
 ```{r manip_data}
@@ -54,8 +65,30 @@ storm.data2 <- storm.data %>%
     date = lubridate::mdy(
       x = sub(x = BGN_DATE, pattern = "([0-9/]+).*", replacement = "\\1")),
     year = year(date),
-    EVTYPE, FATALITIES, INJURIES, PROPDMG
-)
+    EVTYPE, FATALITIES, INJURIES, 
+    PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP
+    ) %>%
+  filter(year >= 1993)
+
+storm.data2 %<>%  
+  mutate(
+    property = PROPDMG * 10 ^
+      ifelse(test = grepl(x = PROPDMGEXP, pattern = "[0-9]"), as.numeric(PROPDMGEXP),
+         ifelse(PROPDMGEXP == "h" || PROPDMGEXP == "H", 2, #hundreds
+            ifelse(PROPDMGEXP == "K" || PROPDMGEXP == "k", 3, #thousands
+               ifelse(PROPDMGEXP == "M" || PROPDMGEXP == "M", 6, #millions
+                  ifelse(PROPDMGEXP == "B", 9, NA))))) #billions, make everything else NA
+  )
+
+storm.data2 %<>%  
+  mutate(
+    property = CROPDMG * 10 ^
+      ifelse(test = grepl(x = CROPDMGEXP, pattern = "[0-9]"), as.numeric(CROPDMGEXP),
+         ifelse(CROPDMGEXP == "h" || CROPDMGEXP == "H", 2, #hundreds
+            ifelse(CROPDMGEXP == "K" || CROPDMGEXP == "k", 3, #thousands
+               ifelse(CROPDMGEXP == "M" || CROPDMGEXP == "M", 6, #millions
+                  ifelse(CROPDMGEXP == "B", 9, NA))))) #billions, make everything else NA
+  )
 ```
 
 # Overview
@@ -65,23 +98,33 @@ corresponding with broad categories: tornadoes, hurricanes, floods, and heat.
 
 
 ```` {r shrink_data}
-impact <- storm.data2 %>%
+#Based on some rough exploration of only event counts:
+# for (i in c("wind", "thun", "light", "floo", "torn", "heat", "hurr")) {
+#   print(paste(i, length(grep(storm.data3$EVTYPE, pattern = i, ignore.case = TRUE))))}
+# [1] "wind 364901"
+# [1] "thun 109587"
+# [1] "light 15987"
+# [1] "floo 82732"
+# [1] "torn 60701"
+# [1] "heat 2648"
+# [1] "hurr 288"
+
+impact <- storm.data3 %>%
   filter(year >= 1993) %>%
   group_by(EVTYPE, year) %>%
   summarise(
     fatalities = sum(FATALITIES), 
-    property = sum(PROPDMG), 
+    property = sum(property), 
     count = n()
     ) %>%
   mutate(
+    wind = grepl(pattern = "WIND", x = EVTYPE),
+    elec = grepl(pattern = "THUN|LIGHT", x = EVTYPE),
     torn = grepl(pattern = "TORN", x = EVTYPE),
     hurr = grepl(pattern = "HURR|TYPH", x = EVTYPE),
     floo = grepl(pattern = "FLOO", x = EVTYPE),
     heat = grepl(pattern = "HEAT", x = EVTYPE)
 )
-
-#overlap of categories?
-# range(impact$torn + impact$hurr + impact$floo + impact$heat) is [0, 1]
 
 impact.all <- rbind(
   impact %>%
@@ -90,6 +133,20 @@ impact.all <- rbind(
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Tornadoes")
+  ,
+  impact %>%
+    filter(wind) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Wind Storms")
+  ,
+  impact %>%
+    filter(elec) %>%
+    group_by(year) %>%
+    summarise(fatalities = sum(fatalities), 
+              property = sum(property)) %>%
+    mutate(type = "Electrical Storms")
   ,
   impact %>%
     filter(hurr) %>%
