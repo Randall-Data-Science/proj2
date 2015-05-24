@@ -1,6 +1,6 @@
 ---
 title: "Extreme Weather Events"
-output: pdf_document
+output: html_document
 ---
 
 # Synopsis
@@ -39,13 +39,8 @@ if (!file.exists("data/StormData.csv.bz2")) {
                 destfile = "data/StormData.csv.bz2", method = "curl")
 }
 
-read_storm_events <- function() {
-  
-  
-}
-
-load_storm_data_csv_bz <- function() {
-  read.csv(file = bzfile("data/StormData.csv.bz2"), header = TRUE, nrows = 10e3,
+load_storm_data_csv_bz <- function(bzf) {
+  read.csv(file = bzfile(bzf), header = TRUE, 
 # read directly from bz2 file, wrap output dataframe in dplyr::tbl_df class                  
     colClasses = c(
       "NULL", 
@@ -60,17 +55,17 @@ load_storm_data_csv_bz <- function() {
       "factor", #propexp
       "numeric", #crops
       "factor", #cropsexp
-      rep("NULL", times = 9))) %>% tbl_df
+      rep("NULL", times = 9))) %>% tbl_df # put the data frame in dplyr df object
 }
 
 if(!exists("storm.data")) {
   if (file.exists("data/stormdata.rds")) storm.data <- readRDS(file = "data//stormdata.rds") 
     # load saved object on disk if available, otherwise:
   else {
-    if (!file.exists("data/StormData.csv.bz2")) {
-      download.file(destfile = "data/StormData.csv.bz2", method = "curl",
-        url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2")}
-    storm.data <- load_storm_data_csv_bz()
+    if (!file.exists("data/StormData.csv.bz2")) download.file(
+      destfile = "data/StormData.csv.bz2", method = "curl",
+      url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2")
+    storm.data <- load_storm_data_csv_bz("data/StormData.csv.bz2")
     saveRDS(object = storm.data, ascii = FALSE, compress = "bzip2", 
       file = "data//stormdata.rds") #cache data in only 1.2MB on disk
   }
@@ -79,40 +74,44 @@ if(!exists("storm.data")) {
 
 ```{r manip_data}
 storm.data2 <- storm.data %>% 
-  transmute(
+  transmute( # transmute ony selects named columns
     date = lubridate::mdy(
       x = sub(x = BGN_DATE, pattern = "([0-9/]+).*", replacement = "\\1")),
-    year = year(date),
+    year = lubridate::year(date),
     EVTYPE, FATALITIES, INJURIES, 
     PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP
-    ) %>%
-  filter(year >= 1996)
+  ) %>% dplyr::filter(year >= 1996)
 
-storm.data2 %<>%  
-  mutate(
-    property = PROPDMG * 10 ^
-      ifelse(test = grepl(x = PROPDMGEXP, pattern = "[0-9]"), as.numeric(PROPDMGEXP),
-         ifelse(PROPDMGEXP == "h" || PROPDMGEXP == "H", 2, #hundreds
-            ifelse(PROPDMGEXP == "K" || PROPDMGEXP == "k", 3, #thousands
-               ifelse(PROPDMGEXP == "M" || PROPDMGEXP == "M", 6, #millions
-                  ifelse(PROPDMGEXP == "B", 9, #billions
-                         NA))))) #ake everything else NA
+# This filter would be part of prev op, but some unknown bug in knitr environment stops it from working
+
+storm.data2 %<>% mutate( # mutate changes named columns, but does not affect the rest
+  property = PROPDMG * 
+    ifelse(PROPDMGEXP == "1", 1, # treat 1 as multiplying by 10^0 or 1
+       ifelse(PROPDMGEXP == "h" || PROPDMGEXP == "H", 100, #hundreds mult by 10^2
+          ifelse(PROPDMGEXP == "K" || PROPDMGEXP == "k", 1e3, #thousands, times 10^3
+             ifelse(PROPDMGEXP == "M" || PROPDMGEXP == "M", 1e6, #millions, times 10^6
+                ifelse(PROPDMGEXP == "B", 1e9, #billions, times 10^9
+    NA))))) # make everything else NA
   )
 
-storm.data2 %<>%  
-  mutate(
-    property = CROPDMG * 10 ^
-      ifelse(test = grepl(x = CROPDMGEXP, pattern = "[0-9]"), as.numeric(CROPDMGEXP),
-         ifelse(CROPDMGEXP == "h" || CROPDMGEXP == "H", 2, #hundreds
-            ifelse(CROPDMGEXP == "K" || CROPDMGEXP == "k", 3, #thousands
-               ifelse(CROPDMGEXP == "M" || CROPDMGEXP == "M", 6, #millions
-                  ifelse(CROPDMGEXP == "B", 9, NA))))) #billions, make everything else NA
+storm.data2 %<>% mutate(
+  crops = CROPDMG * 
+    ifelse(CROPDMGEXP == 1, 1,
+       ifelse(CROPDMGEXP == "h" || CROPDMGEXP == "H", 100, #hundreds
+          ifelse(CROPDMGEXP == "K" || CROPDMGEXP == "k", 1e3, #thousands
+             ifelse(CROPDMGEXP == "M" || CROPDMGEXP == "M", 1e6, #millions
+                ifelse(CROPDMGEXP == "B", 1e9, 
+    NA))))) #billions, make everything else NA
   )
+
+storm.data3 <- storm.data2 %>% 
+  select(year, type = EVTYPE, fatality = FATALITIES, property, crops)
 ```
 
 # Overview
 
-This analysis focuses on extreme weather events from 1996 through 2011,
+This analysis focuses on extreme weather events from 1996 through 2011. While the 
+documentation seems to say that there are 48 types of weather tracked
 corresponding with broad categories: tornadoes, hurricanes, floods, and heat.
 
 
@@ -128,8 +127,7 @@ corresponding with broad categories: tornadoes, hurricanes, floods, and heat.
 # [1] "heat 2648"
 # [1] "hurr 288"
 
-impact <- storm.data3 %>%
-  filter(year >= 1993) %>%
+impact <- storm.data2 %>%
   group_by(EVTYPE, year) %>%
   summarise(
     fatalities = sum(FATALITIES), 
@@ -147,42 +145,42 @@ impact <- storm.data3 %>%
 
 impact.all <- rbind(
   impact %>%
-    filter(torn) %>%
+    dplyr::filter(torn) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Tornadoes")
   ,
   impact %>%
-    filter(wind) %>%
+    dplyr::filter(wind) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Wind Storms")
   ,
   impact %>%
-    filter(elec) %>%
+    dplyr::filter(elec) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Electrical Storms")
   ,
   impact %>%
-    filter(hurr) %>%
+    dplyr::filter(hurr) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Hurricanes")
   ,
   impact %>%
-    filter(floo) %>%
+    dplyr::filter(floo) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
     mutate(type = "Floods")
   ,
   impact %>%
-    filter(heat) %>%
+    dplyr::filter(heat) %>%
     group_by(year) %>%
     summarise(fatalities = sum(fatalities), 
               property = sum(property)) %>%
