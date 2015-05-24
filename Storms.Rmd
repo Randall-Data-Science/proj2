@@ -1,19 +1,27 @@
 ---
 title: "Extreme Weather Events"
-output: html_document
+output: pdf_document
 ---
 
-# Summary
+# Synopsis
 
-Data from the US National Weather Service on extreme weather events, indicate
-how different broad categories of weather differ in their impact with respect 
-to loss of human life or loss of property.
+Data from the US NOAA National Climatic Data Center 
+*Storm Events Database* ^[http://www.ncdc.noaa.gov/stormevents/] include statistics 
+on loss of human life and damage to property. This study will briefly explore the 
+relationship between different categories of weather events and thier impact.
+
+NOAA's National Weather Service has been collecting data on storm events since 1950.
+^[http://www.ncdc.noaa.gov/stormevents/details.jsp?type=eventtype]
+Over the history of the program varied and increasingly detailed information about the 
+categories of weather events has been reported and compiled. In order to form a uniform 
+data set of events this study uses data beginning in 1996 which follows NWS Instruction
+10-1605 ^[http://www.ncdc.noaa.gov/stormevents/pd01016005curr.pdf] outlaying 48 weather
+categories.
 
 ## Data Processing
 
-The NOAA bz2 compressed csv formatted data set includes data from 1950 through 2011. 
-However the categories were useful for the period from 1993 through 2011.
-
+The data come in a bz2-compressed csv file with all events on record from 1950 through
+2011.
 
 ```{r load_libraries, message=FALSE} 
 need <- function(libraries) {
@@ -26,8 +34,18 @@ need(c("dplyr", "lubridate", "tidyr", "ggplot2", "magrittr"))
 ```
 
 ```{r load_data}
+if (!file.exists("data/StormData.csv.bz2")) {
+  download.file(url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+                destfile = "data/StormData.csv.bz2", method = "curl")
+}
+
+read_storm_events <- function() {
+  
+  
+}
+
 load_storm_data_csv_bz <- function() {
-  tbl_df(read.csv(file = bzfile("data/StormData.csv.bz2"), header = TRUE, 
+  read.csv(file = bzfile("data/StormData.csv.bz2"), header = TRUE, nrows = 10e3,
 # read directly from bz2 file, wrap output dataframe in dplyr::tbl_df class                  
     colClasses = c(
       "NULL", 
@@ -35,14 +53,14 @@ load_storm_data_csv_bz <- function() {
       rep("NULL", times = 4), #skip columns
       "factor", #state
       "factor", #type
-      rep("NULL", times = 14), #skip
+      rep("NULL", times = 14), #skip columns
       "numeric", #fatal
       "numeric", #injuries
       "numeric", #property
-      "character", #propexp
+      "factor", #propexp
       "numeric", #crops
-      "character", #cropsexp
-      rep("NULL", times = 9))))
+      "factor", #cropsexp
+      rep("NULL", times = 9))) %>% tbl_df
 }
 
 if(!exists("storm.data")) {
@@ -51,7 +69,7 @@ if(!exists("storm.data")) {
   else {
     if (!file.exists("data/StormData.csv.bz2")) {
       download.file(destfile = "data/StormData.csv.bz2", method = "curl",
-        url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",)}
+        url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2")}
     storm.data <- load_storm_data_csv_bz()
     saveRDS(object = storm.data, ascii = FALSE, compress = "bzip2", 
       file = "data//stormdata.rds") #cache data in only 1.2MB on disk
@@ -68,7 +86,7 @@ storm.data2 <- storm.data %>%
     EVTYPE, FATALITIES, INJURIES, 
     PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP
     ) %>%
-  filter(year >= 1993)
+  filter(year >= 1996)
 
 storm.data2 %<>%  
   mutate(
@@ -77,7 +95,8 @@ storm.data2 %<>%
          ifelse(PROPDMGEXP == "h" || PROPDMGEXP == "H", 2, #hundreds
             ifelse(PROPDMGEXP == "K" || PROPDMGEXP == "k", 3, #thousands
                ifelse(PROPDMGEXP == "M" || PROPDMGEXP == "M", 6, #millions
-                  ifelse(PROPDMGEXP == "B", 9, NA))))) #billions, make everything else NA
+                  ifelse(PROPDMGEXP == "B", 9, #billions
+                         NA))))) #ake everything else NA
   )
 
 storm.data2 %<>%  
@@ -93,7 +112,7 @@ storm.data2 %<>%
 
 # Overview
 
-This analysis focuses on extreme weather events from 1993 through 2011,
+This analysis focuses on extreme weather events from 1996 through 2011,
 corresponding with broad categories: tornadoes, hurricanes, floods, and heat.
 
 
