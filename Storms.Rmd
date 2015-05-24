@@ -1,6 +1,6 @@
 ---
 title: "Extreme Weather Events"
-output: html_document
+output: pdf_document
 ---
 
 # Synopsis
